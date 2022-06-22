@@ -1,0 +1,76 @@
+#!/bin/bash
+#read -p "Pleace Inout iplist PATH (/path/path/iplist_file): " path
+echo "LOG default PTEH(/var/log/ping_test_log&&ping_test_ERROR_log)"
+if [ -e "/var/log/ping_test_log" ];then
+	echo "============`date "+%Y-%m-%d %H:%M:%S"`==============" >>/var/log/ping_test_log
+	echo "============`date "+%Y-%m-%d %H:%M:%S"`==============" >>/var/log/ping_test_ERROR_log
+else
+	echo "file not"
+fi
+valid_ip () {
+    local  ip=$1
+    local  stat=1
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        OIFS=$IFS
+        IFS='.'
+        ip=($ip)
+        IFS=$OIFS
+        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
+        && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+        stat=$?
+    fi
+    return $stat
+}
+
+function mian_fun_host(){
+	trap "exit" INT
+	for i in $1;do
+		if ! valid_ip "${i}";then
+			echo "$1 --> IP不合法" >>//var/log/ping_test_ERROR_log
+		else
+			countryCode=`curl http://demo.ip-api.com/$i 2> /dev/null|grep "countryCode" | awk -F ":" '{print $2}'|sed -E 's/ *,| //g'`
+			city=`curl http://demo.ip-api.com/$i 2> /dev/null|grep city | awk -F ":" '{print $2}'|sed -E 's/ *,| //g'`
+			ASN=`curl http://demo.ip-api.com/$i 2> /dev/null|grep "\"as\"" | awk -F ":" '{print $2}'|sed -E 's/ *,| //g'`
+			OUT_rtt=`ping -c2 -W1 $i |grep "rtt"`			Status=$?
+			RTT=`echo $OUT_rtt |awk '{print $4}'`
+			printf "%-10s%-20s%-35s%-20s%-30s%-20s\n" $Status $i $RTT "$countryCode" $city $ASN>>/var/log/ping_test_log
+	        	printf "%-10s%-20s%-35s%-20s%-30s%-20s\n" $Status $i $RTT "$countryCode" $city $ASN
+		fi
+	done
+}
+
+function mian_fun_list(){
+        trap "exit" INT
+        for i in `cat $1`;do
+                if ! valid_ip "${i}";then
+                        echo "$1 --> IP不合法" >>//var/log/ping_test_ERROR_log
+                else
+                        countryCode=`curl http://demo.ip-api.com/$i 2> /dev/null|grep "countryCode" | awk -F ":" '{print $2}'|sed -E 's/ *,| //g'`
+                        city=`curl http://demo.ip-api.com/$i 2> /dev/null|grep city | awk -F ":" '{print $2}'|sed -E 's/ *,| //g'`
+                        ASN=`curl http://demo.ip-api.com/$i 2> /dev/null|grep "\"as\"" | awk -F ":" '{print $2}'|sed -E 's/ *,| //g'`
+                        OUT_rtt=`ping -c2 -W1 $i |grep "rtt"`                   Status=$?
+                        RTT=`echo $OUT_rtt |awk '{print $4}'`
+                        printf "%-10s%-20s%-35s%-20s%-30s%-20s\n" $Status $i $RTT "$countryCode" $city $ASN>>/var/log/ping_test_log
+                        printf "%-10s%-20s%-35s%-20s%-30s%-20s\n" $Status $i $RTT "$countryCode" $city $ASN
+                fi
+	done
+}
+
+if [ !$1 ] && [ !$2 ];then
+	if [ $1 == "--host" ];then
+                mian_fun_host $2
+	elif [ $1 == "--list" ];then
+		mian_fun_list $2
+	elif [ $1 == "--help"];then
+                echo " --host 8.8.8.8                   PING Single IP address"
+                echo " --list /file/path/iplist         Ping the IP list to specify the list file"
+	else
+        	echo "ERROR"
+        	echo " --host 8.8.8.8			PING Single IP address"
+        	echo " --list /file/path/iplist		Ping the IP list to specify the list file"
+	fi
+else
+                echo "ERROR"
+                echo " --host 8.8.8.8                   PING Single IP address"
+                echo " --list /file/path/iplist         Ping the IP list to specify the list file"
+fi
